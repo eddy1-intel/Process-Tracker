@@ -1,85 +1,222 @@
+let processes = JSON.parse(localStorage.getItem("processes")) || [];
+let chart;
+let currentPage = 1;
+const itemsPerPage = 5;
+const stepDetails = document.getElementById("stepDetails");
 
-const processList = document.getElementById('processList');
-
-// Load data from localStorage on page load
-window.onload = function() {
-    const storedProcesses = JSON.parse(localStorage.getItem('processes')) || [];
-    storedProcesses.forEach(process => renderProcess(process));
-};
-
+// Add Process
 function addProcess() {
-    const processName = document.getElementById('process').value;
-    const toolName = document.getElementById('tool').value;
-    const progress = document.getElementById('progress').value;
+    const name = document.getElementById("softwareName").value.trim();
+    const steps = document.getElementById("stepDetails").value.trim();
+    const feeling = document.getElementById("feeling").value;
 
-    if (!processName || !toolName || progress === "") {
-        alert('Please fill out all fields.');
+    if (!name || !steps) {
+        alert("Please fill out all fields.");
         return;
     }
 
-    const process = {
-        id: Date.now(),
-        name: processName,
-        tool: toolName,
-        progress: parseInt(progress, 10)
-    };
+    const formattedSteps = formatLinks(steps);
+    processes.push({
+        name,
+        steps: formattedSteps,
+        feeling,
+        date: new Date().toLocaleString(),
+    });
 
-    renderProcess(process);
-    saveProcess(process);
-
-    document.getElementById('process').value = '';
-    document.getElementById('tool').value = '';
-    document.getElementById('progress').value = '';
+    saveAndRender();
+    clearInputs();
 }
 
-function renderProcess(process) {
-    const processItem = document.createElement('div');
-    processItem.className = 'process-item';
-    processItem.dataset.id = process.id;
-
-    processItem.innerHTML = `
-        <strong>Process:</strong> <span class="process-name">${process.name}</span><br>
-        <strong>Tool:</strong> <span class="tool-name">${process.tool}</span><br>
-        <strong>Progress:</strong> <span class="progress-value">${process.progress}</span>%
-        <div class="progress-bar">
-            <div class="progress-bar-inner" style="width: ${process.progress}%">${process.progress}%</div>
-        </div>
-        <button class="edit-btn" onclick="editProcess(this)">Edit</button>
-        <button class="delete-btn" onclick="deleteProcess(this)">Delete</button>
-    `;
-
-    processList.appendChild(processItem);
+// Clear Input Fields
+function clearInputs() {
+    document.getElementById("softwareName").value = "";
+    document.getElementById("stepDetails").value = "";
 }
 
-function saveProcess(process) {
-    const processes = JSON.parse(localStorage.getItem('processes')) || [];
-    processes.push(process);
-    localStorage.setItem('processes', JSON.stringify(processes));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Format Links for Clickability
+
+function formatLinks(text) {
+    return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
 }
 
-function deleteProcess(button) {
-    const processItem = button.parentElement;
-    const processId = processItem.dataset.id;
 
-    processItem.remove();
 
-    let processes = JSON.parse(localStorage.getItem('processes')) || [];
-    processes = processes.filter(process => process.id !== parseInt(processId, 10));
-    localStorage.setItem('processes', JSON.stringify(processes));
+
+// Save to Local Storage and Render
+function saveAndRender() {
+    localStorage.setItem("processes", JSON.stringify(processes));
+    renderProcesses();
+    updateChart();
 }
 
-function editProcess(button) {
-    const processItem = button.parentElement;
-    const processId = processItem.dataset.id;
+// Render Processes with Pagination
+function renderProcesses(filteredProcesses = processes) {
+    const list = document.getElementById("processList");
+    list.innerHTML = "";
 
-    const processName = processItem.querySelector('.process-name').textContent;
-    const toolName = processItem.querySelector('.tool-name').textContent;
-    const progress = processItem.querySelector('.progress-value').textContent;
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const paginatedProcesses = filteredProcesses.slice(start, end);
 
-    document.getElementById('process').value = processName;
-    document.getElementById('tool').value = toolName;
-    document.getElementById('progress').value = progress;
+    paginatedProcesses.forEach((process, index) => {
+        const card = document.createElement("div");
+        card.className = `process-card ${process.feeling}`;
+        card.innerHTML = `
+            <div>
+                <strong>${process.name}</strong><br>
+                <small>Steps: ${process.steps}</small><br>
+                <small>Date: ${process.date}</small>
+            </div>
+            <div>
+                <button class="view-btn" onclick="viewProcess(${index + start})">View</button>
+                <button class="edit-btn" onclick="editProcess(${index + start})">Edit</button>
+                <button class="delete-btn" onclick="deleteProcess(${index + start})">Delete</button>
+            </div>
+        `;
+        list.appendChild(card);
+    });
 
-    deleteProcess(button);
+    updatePagination(filteredProcesses);
 }
 
+// Edit Process
+function editProcess(index) {
+    const process = processes[index];
+    document.getElementById("softwareName").value = process.name;
+    document.getElementById("stepDetails").value = stripHTML(process.steps);
+    document.getElementById("feeling").value = process.feeling;
+
+    deleteProcess(index, false); // Temporarily delete for re-editing
+}
+
+// Delete Process
+function deleteProcess(index, shouldSave = true) {
+    processes.splice(index, 1);
+    if (shouldSave) saveAndRender();
+}
+
+// Dynamic Popup View for Process
+function viewProcess(index) {
+    const process = processes[index];
+    document.getElementById("popupTitle").textContent = process.name;
+    document.getElementById("popupSteps").innerHTML = process.steps;
+    document.getElementById("popupDate").textContent = `Date Added: ${process.date}`;
+
+    document.getElementById("popupView").classList.remove("hidden");
+}
+
+// Close Popup
+function closePopup() {
+    document.getElementById("popupView").classList.add("hidden");
+}
+
+// Pagination Controls
+function updatePagination(filteredProcesses = processes) {
+    const pageInfo = document.getElementById("pageInfo");
+    const totalPages = Math.ceil(filteredProcesses.length / itemsPerPage);
+
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(processes.length / itemsPerPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderProcesses();
+    }
+}
+
+function previousPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderProcesses();
+    }
+}
+
+// Search and Filter
+function filterProcesses() {
+    const query = document.getElementById("searchInput").value.toLowerCase();
+    const filtered = processes.filter(p => p.name.toLowerCase().includes(query));
+    renderProcesses(filtered);
+}
+
+function filterByColor(color) {
+    const filtered = processes.filter(p => p.feeling === color);
+    renderProcesses(filtered);
+}
+
+function resetFilters() {
+    renderProcesses();
+}
+
+// Sort Processes
+function sortProcesses() {
+    const option = document.getElementById("sortOptions").value;
+    if (option === "name") {
+        processes.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (option === "rating") {
+        processes.sort((a, b) => a.feeling.localeCompare(b.feeling));
+    }
+    saveAndRender();
+}
+
+// Update Chart
+function updateChart() {
+    const counts = { green: 0, yellow: 0, red: 0 };
+    processes.forEach(p => counts[p.feeling]++);
+
+    const ctx = document.getElementById("overviewChart").getContext("2d");
+    if (chart) chart.destroy();
+
+    chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: ["Good", " Neutral", "Poor"],
+            datasets: [{
+                label: "Task Ratings",
+                data: [counts.green, counts.yellow, counts.red],
+                backgroundColor: ["#28a745", "#ffc107", "#dc3545"],
+            }],
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } },
+    });
+}
+
+// Export to PDF
+function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    processes.forEach((process, index) => {
+        const y = 10 + index * 10;
+        doc.text(`${index + 1}. ${process.name} (${process.feeling.toUpperCase()})`, 10, y);
+        doc.text(`Steps: ${stripHTML(process.steps)}`, 10, y + 5);
+    });
+
+    doc.save("processes.pdf");
+}
+
+// Strip HTML Tags (for clean PDF text)
+function stripHTML(html) {
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    return div.textContent || div.innerText || "";
+}
+
+// Initialize
+saveAndRender();
